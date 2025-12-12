@@ -1,50 +1,62 @@
-#Customer Segmentation with RFM Analysis
+# Customer Segmentation with RFM Analysis & Streamlit App
 
-# Project Overview
-This project implements customer segmentation analysis using online retail transaction data. The goal is to clean, explore, and prepare transactional data for RFM (Recency, Frequency, Monetary) analysis and subsequent clustering to identify customer segments.
+## Project Overview
+This project implements customer segmentation using online retail transaction data. It includes data cleaning, RFM (Recency, Frequency, Monetary) analysis, K-means clustering, outlier handling, and an interactive **Streamlit dashboard** for visualization and exploration of customer segments.
 
-# Dataset Information
-The project uses the "Online Retail II" dataset from the UCI Machine Learning Repository, containing online retail transaction data.
+## Dataset
+- **Source:** Online Retail II dataset (UCI Machine Learning Repository)
+- **Format:** Excel (.xlsx)
+- **Size:** ~46MB
+- **Note:** Dataset is **not included** in this repository. Download it and place it in the `data/` directory.
 
-# Dataset Source
-Dataset: Online Retail II
-Link: UCI Machine Learning Repository - Online Retail II
-Format: Excel (.xlsx)
-Size: ~46MB (for Year 2010-2011)
+## Notebook Workflow
+1. **Data Loading & Exploration**
+   - Load dataset from Excel
+   - Initial exploration and summary statistics
+   - Identify data quality issues
 
-Note: The dataset is NOT included in this repository. You need to download it separately from the UCI link above and place it in the data/ directory.
+2. **Data Cleaning**
+   - Filter valid transactions
+   - Remove non-standard product codes
+   - Handle missing Customer IDs
+   - Remove negative/zero prices
 
-# Notebook Workflow
-1. Data Loading & Exploration
-Load dataset from Excel file
-Initial data exploration and summary statistics
-Identify data quality issues
+3. **Feature Engineering - RFM**
+   - **Recency:** Days since last purchase
+   - **Frequency:** Number of purchases
+   - **MonetaryValue:** Total spend (Quantity × Price)
 
-2. Data Cleaning
-Filter valid transactions (regular invoices only)
-Remove non-standard product codes (administrative, test items)
-Handle missing Customer IDs
-Remove negative/zero prices
-Clean quantities and prices
+4. **Outlier Handling**
+   - Identify and separate outliers for analysis
+   - Ensure clustering is robust to extreme values
 
-3. Feature Engineering - RFM Analysis
-Create RFM metrics for each customer:
-MonetaryValue: Total purchase value (Quantity × Price)
-Frequency: Number of unique invoices
-Recency: Days since last purchase
+5. **Clustering Analysis**
+   - Normalize RFM features with StandardScaler
+   - Apply **K-means clustering**
+   - Analyze, interpret, and label customer segments
+   - Visualize clusters interactively
 
-4. Data Preparation for Clustering
-Normalize RFM features using StandardScaler
-Prepare data for K-means clustering
-
-5. Clustering Analysis (Planned)
-Determine optimal clusters (elbow method, silhouette score)
-Apply K-means clustering
-Analyze and interpret customer segments
-Visualize clusters
+6. **Streamlit Dashboard**
+   - Interactive visualization of clusters
+   - View metrics per segment
+   - Filter by outliers/non-outliers
+   - Download CSV for each segment
+   - Insights and recommendations for marketing actions
 
 ## Setup & Environment
+```bash
+# Create virtual environment
+python -m venv .venv
 
-Create a python virtual environment via python -m venv <env_name>
-Activate the environment via . <env_name>/Scripts/activate or . <env_name>/bin/activate
-Install requirements via pip install -r requirements.txt
+# Activate
+# Windows
+.venv\Scripts\activate
+# macOS/Linux
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run Streamlit app
+streamlit run app.py
+

@@ -15,15 +15,14 @@ plotly>=5.0.0
 openpyxl>=3.0.0
 xlrd>=2.0.0
 
-# Jupyter environment
-jupyter>=1.0.0
-ipykernel>=6.0.0
-ipywidgets>=7.6.0
+# Streamlit for web app
+streamlit>=1.25.0
 
 # Utilities
 tqdm>=4.62.0
 python-dotenv>=0.19.0
 
-# Code quality
+# Code quality (optional)
 black>=21.0.0
 flake8>=3.9.0
+
