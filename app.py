@@ -1,210 +1,140 @@
-import streamlit as st
+"""Dashboard decisionnel base sur l'artefact RFM/K-Means du notebook."""
+from pathlib import Path
+
 import pandas as pd
-import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans
-import warnings
-warnings.filterwarnings('ignore')
+import streamlit as st
 
+st.set_page_config("SegmentIQ | Customer Intelligence", "◈", layout="wide")
 
-st.set_page_config(
-    page_title="Customer Segmentation Dashboard",
-    page_icon="👥",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-
-# Style CSS
-
-st.markdown("""
-<style>
-.main-title { font-size:2.5rem; font-weight:bold; text-align:center; background: linear-gradient(90deg,#667eea,#764ba2); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:1rem;}
-.section-title { font-size:1.8rem; color:#2c3e50; border-bottom:3px solid #3498db; padding-bottom:10px; margin-top:2rem; margin-bottom:1.5rem;}
-.metric-box {background:#f8f9fa; border-radius:10px; padding:15px; text-align:center; box-shadow:0 2px 4px rgba(0,0,0,0.05);}
-.insight-box {background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; border-radius:10px; padding:20px; margin:10px 0;}
-.cluster-card {background:white; border-radius:10px; padding:20px; margin:10px 0; box-shadow:0 4px 6px rgba(0,0,0,0.1); border-left:5px solid;}
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown('<h1 class="main-title">👥 Customer Segmentation Dashboard</h1>', unsafe_allow_html=True)
-st.markdown("### Interactive dashboard with RFM analysis & KMeans clustering")
-
-
-cluster_labels = {
-    0: "RETAIN",
-    1: "RE-ENGAGE",
-    2: "NURTURE",
-    3: "REWARD",
-    -1: "PAMPER",
-    -2: "UPSELL",
-    -3: "DELIGHT"
+DATA_PATH = Path(__file__).with_name("full_clustering_preprocessed.csv")
+COLORS = {"DELIGHT":"#7C3AED", "PAMPER":"#DB2777", "REWARD":"#F59E0B",
+          "RETAIN":"#0EA5A4", "UPSELL":"#2563EB", "NURTURE":"#64748B", "RE-ENGAGE":"#EF4444"}
+PLAYBOOKS = {
+    "DELIGHT": ("Préserver une relation à très forte valeur", "Accès anticipé, service prioritaire et offre VIP personnalisée.", "Gestionnaire de compte ou e-mail personnalisé"),
+    "PAMPER": ("Fidéliser les clients à forte contribution", "Programme de reconnaissance, avantages premium et surprises ciblées.", "E-mail personnalisé"),
+    "REWARD": ("Récompenser la fréquence d'achat", "Points fidélité, bundles et accès en avant-première.", "E-mail ou programme de fidélité"),
+    "RETAIN": ("Maintenir la régularité d'achat", "Recommandations complémentaires et rappels légers.", "E-mail automatisé"),
+    "UPSELL": ("Développer le panier moyen de clients actifs", "Bundles premium et produits complémentaires adaptés à l'historique.", "E-mail ou recommandation sur site"),
+    "NURTURE": ("Faire progresser les clients à potentiel", "Séquence de découverte, best-sellers et incentive de second achat.", "E-mail de nurturing"),
+    "RE-ENGAGE": ("Réactiver les clients devenus inactifs", "Campagne win-back avec une offre pertinente et limitée.", "E-mail de réactivation"),
 }
 
-
-
-# Load / Generate Data
-
-@st.cache_data
-def load_data():
-    np.random.seed(42)
-    n_customers = 2000
-    n_outliers = 90
-
-    # Non-outliers
-    df_normal = pd.DataFrame({
-        'CustomerID': range(1000, 1000+n_customers),
-        'Recency': np.random.gamma(2,30,n_customers),
-        'Frequency': np.random.poisson(3,n_customers),
-        'MonetaryValue': np.random.exponential(100,n_customers)
-    })
-
-    # Outliers
-    df_out = pd.DataFrame({
-        'CustomerID': range(10000,10000+n_outliers),
-        'Recency': np.random.gamma(2,100,n_outliers),
-        'Frequency': np.random.poisson(10,n_outliers),
-        'MonetaryValue': np.random.exponential(500,n_outliers)
-    })
-
-    # Assign outlier clusters
-    out_clusters = [-1,-2,-3]
-    df_out['Cluster'] = [out_clusters[i%3] for i in range(n_outliers)]
-
-    # KMeans on normal data
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(df_normal[['Recency','Frequency','MonetaryValue']])
-    kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
-    df_normal['Cluster'] = kmeans.fit_predict(X_scaled)
-
-    # Customer Value
-    df_normal['Customer_Value'] = df_normal['Frequency'] * df_normal['MonetaryValue']
-    df_out['Customer_Value'] = df_out['Frequency'] * df_out['MonetaryValue']
-
-    # Merge
-    df = pd.concat([df_normal, df_out], ignore_index=True)
-
-    # Map cluster labels
-    df['Segment'] = df['Cluster'].map(cluster_labels)
-
+@st.cache_data(show_spinner=False)
+def load_data(path: Path) -> pd.DataFrame:
+    """Charge le resultat réel du clustering; l'app ne fabrique aucune donnée."""
+    df = pd.read_csv(path).rename(columns={"Customer ID":"CustomerID", "ClusterLabel":"Segment"})
+    required = {"CustomerID", "MonetaryValue", "Frequency", "LastInvoiceDate", "Recency", "Segment"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Colonnes manquantes : {', '.join(sorted(missing))}")
+    for col in ["MonetaryValue", "Frequency", "Recency"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df["LastInvoiceDate"] = pd.to_datetime(df["LastInvoiceDate"], errors="coerce")
+    df = df.dropna(subset=["CustomerID", "MonetaryValue", "Frequency", "Recency", "Segment"])
+    df["CustomerID"] = df["CustomerID"].astype(int).astype(str)
     return df
 
-df = load_data()
+def euros(value): return f"€{value:,.0f}".replace(",", " ")
+def pct(value): return f"{value:.1%}".replace(".", ",")
+def summary(df):
+    result = df.groupby("Segment", as_index=False).agg(
+        Clients=("CustomerID", "nunique"), CA=("MonetaryValue", "sum"),
+        Panier_moyen=("MonetaryValue", "mean"), Frequence=("Frequency", "mean"), Recence=("Recency", "mean"))
+    result["Part_CA"] = result["CA"] / result["CA"].sum()
+    return result.sort_values("CA", ascending=False)
 
+st.markdown("""<style>
+.stApp{background:#F7F8FC;color:#172033}[data-testid="stSidebar"]{background:#111827}
+[data-testid="stSidebar"] *{color:#F9FAFB}.hero{padding:.2rem 0 1rem}.eyebrow{color:#7C3AED;font-size:.78rem;font-weight:700;letter-spacing:.12em}
+.hero h1{color:#111827;font-size:2.5rem;letter-spacing:-.05em;margin:.1rem 0}.hero p{color:#64748B;margin:0;font-size:1.05rem}
+.insight{background:#181B31;color:#F8FAFC;border-radius:14px;padding:1rem 1.25rem}.insight strong{color:#C4B5FD}
+div[data-testid="stMetric"]{background:#fff;border:1px solid #E7EAF1;padding:.9rem;border-radius:12px}
+.stTabs [data-baseweb="tab-list"]{gap:1.25rem}.stTabs [data-baseweb="tab"]{padding-left:0;padding-right:0;font-weight:600}
+</style>""", unsafe_allow_html=True)
 
-# Sidebar
+try:
+    df = load_data(DATA_PATH)
+except (FileNotFoundError, ValueError) as error:
+    st.error(f"Impossible de charger l'artefact de clustering : {error}")
+    st.stop()
 
+segments = [segment for segment in PLAYBOOKS if segment in df.Segment.unique()]
 with st.sidebar:
-    st.markdown("## ⚙️ Filters & Options")
-    segments_all = df['Segment'].unique()
-    selected_segments = st.multiselect("Select segments to display", options=segments_all, default=list(segments_all))
-    min_val, max_val = st.slider("Filter by Monetary Value", float(df['MonetaryValue'].min()), float(df['MonetaryValue'].max()), (float(df['MonetaryValue'].min()), float(df['MonetaryValue'].max())))
-    show_3d = st.checkbox("Show 3D Plot", value=True)
+    st.markdown("# SegmentIQ")
+    st.caption("Customer intelligence • RFM + K-Means")
+    st.divider(); st.markdown("#### Périmètre d'analyse")
+    selected = st.multiselect("Segments", segments, default=segments, label_visibility="collapsed")
+    limit = st.slider("Récence maximale (jours)", 0, int(df.Recency.max()), int(df.Recency.max()))
+    st.divider();
 
-# Filter data
-filtered_df = df[df['Segment'].isin(selected_segments)]
-filtered_df = filtered_df[(filtered_df['MonetaryValue']>=min_val) & (filtered_df['MonetaryValue']<=max_val)]
+filtered = df[df.Segment.isin(selected) & df.Recency.le(limit)].copy()
+st.markdown("""<div class="hero"><div class="eyebrow">CUSTOMER INTELLIGENCE</div><h1>De la segmentation aux décisions.</h1><p>Une lecture actionnable des comportements d'achat issus de l'analyse RFM.</p></div>""", unsafe_allow_html=True)
+if filtered.empty:
+    st.warning("Aucun client ne correspond aux filtres actuels."); st.stop()
 
+stats = summary(filtered)
+revenue = filtered.MonetaryValue.sum()
+top20 = filtered.nlargest(max(1, int(len(filtered)*.2)), "MonetaryValue").MonetaryValue.sum()
+active = filtered.loc[filtered.Recency.le(30), "CustomerID"].nunique()
+reengage = filtered.loc[filtered.Segment.eq("RE-ENGAGE"), "MonetaryValue"].sum()
+kpis = st.columns(4)
+kpis[0].metric("Clients analysés", f"{filtered.CustomerID.nunique():,}".replace(",", " "))
+kpis[1].metric("CA historique observé", euros(revenue))
+kpis[2].metric("Clients actifs (≤ 30 j)", f"{active:,}".replace(",", " "))
+kpis[3].metric("CA des 20 % premiers clients", pct(top20/revenue))
+lead = stats.iloc[0]
+reengage_text = f"Le vivier <strong>RE-ENGAGE</strong> représente {euros(reengage)} à réactiver." if reengage else "Le segment RE-ENGAGE n'est pas inclus dans les filtres."
+st.markdown(f"<div class='insight'>Priorité business : <strong>{lead.Segment}</strong> concentre {pct(lead.Part_CA)} du CA observé avec {lead.Clients:,} clients. {reengage_text}</div>".replace(",", " "), unsafe_allow_html=True)
 
-# Overview Metrics
+t1, t2, t3, t4 = st.tabs(["Vue d'ensemble", "Profils segments", "Plan de campagne", "Explorateur clients"])
+with t1:
+    left, right = st.columns((1.05,.95), gap="large")
+    with left:
+        fig = px.bar(stats.sort_values("CA"), x="CA", y="Segment", orientation="h", color="Segment", color_discrete_map=COLORS, text="Part_CA", title="Contribution au chiffre d'affaires par segment")
+        fig.update_traces(texttemplate="%{text:.1%}", textposition="outside", cliponaxis=False)
+        fig.update_layout(showlegend=False, height=390, margin=dict(l=0,r=35,t=55,b=10), xaxis_title="CA historique")
+        st.plotly_chart(fig, width="stretch")
+    with right:
+        fig = px.scatter(filtered, x="Recency", y="Frequency", size="MonetaryValue", color="Segment", color_discrete_map=COLORS, hover_data={"CustomerID":True,"MonetaryValue":":,.2f","Recency":True,"Frequency":True}, title="Engagement : récence, fréquence et valeur", labels={"Recency":"Jours depuis le dernier achat", "Frequency":"Nombre d'achats"})
+        fig.update_layout(height=390, margin=dict(l=0,r=0,t=55,b=10), legend_title_text="")
+        st.plotly_chart(fig, width="stretch")
+    st.markdown("#### Lecture rapide")
+    c1,c2,c3 = st.columns(3); active_segment=stats.loc[stats.Recence.idxmin()]; frequent=stats.loc[stats.Frequence.idxmax()]
+    c1.info(f"**À protéger**\n\n{lead.Segment} est le premier contributeur de valeur.")
+    c2.info(f"**Le plus actif**\n\n{active_segment.Segment} achète en moyenne tous les {active_segment.Recence:.0f} jours.")
+    c3.info(f"**Le plus fréquent**\n\n{frequent.Segment} affiche {frequent.Frequence:.1f} achats en moyenne.")
 
-st.markdown('<h2 class="section-title">📋 Overview</h2>', unsafe_allow_html=True)
-col1,col2,col3,col4 = st.columns(4)
-col1.metric("Total Customers", len(filtered_df))
-col2.metric("Average Value", f"${filtered_df['MonetaryValue'].mean():,.0f}")
-col3.metric("High Value Customers", len(filtered_df[filtered_df['MonetaryValue']>filtered_df['MonetaryValue'].quantile(0.8)]))
-col4.metric("Recently Active", len(filtered_df[filtered_df['Recency']<30]))
+with t2:
+    st.markdown("#### Comparer les profils RFM")
+    display = stats.rename(columns={"CA":"CA historique", "Panier_moyen":"Panier moyen", "Frequence":"Fréquence moyenne", "Recence":"Récence moyenne", "Part_CA":"Part du CA"}).copy()
+    display["CA historique"] = display["CA historique"].map(euros); display["Panier moyen"] = display["Panier moyen"].map(euros); display["Part du CA"] = display["Part du CA"].map(pct)
+    display["Fréquence moyenne"] = display["Fréquence moyenne"].map(lambda x:f"{x:.1f}"); display["Récence moyenne"] = display["Récence moyenne"].map(lambda x:f"{x:.0f} j")
+    st.dataframe(display, width="stretch", hide_index=True)
+    chosen = st.selectbox("Choisir un segment à analyser", stats.Segment.tolist())
+    data = filtered[filtered.Segment.eq(chosen)]; profile = summary(data).iloc[0]; goal, action, channel = PLAYBOOKS[chosen]
+    left,right=st.columns((1.05,.95), gap="large")
+    with left:
+        a,b,c=st.columns(3); a.metric("Clients", f"{profile.Clients:,}".replace(","," ")); b.metric("CA historique", euros(profile.CA)); c.metric("Récence moyenne", f"{profile.Recence:.0f} jours")
+        fig=px.histogram(data,x="MonetaryValue",nbins=35,color_discrete_sequence=[COLORS[chosen]],title=f"Distribution de valeur — {chosen}",labels={"MonetaryValue":"Valeur monétaire"})
+        fig.update_layout(height=300,margin=dict(l=0,r=0,t=55,b=10)); st.plotly_chart(fig, width="stretch")
+    with right:
+        st.markdown("#### Action recommandée"); st.success(f"**Objectif :** {goal}"); st.write(action); st.caption(f"Canal conseillé : {channel}")
 
-# Distribution segments
-if len(filtered_df)==0:
-    st.warning("⚠️ No segment selected or filter too strict.")
-else:
-    fig = px.pie(filtered_df, names='Segment', values='CustomerID', title="Segment Distribution", color='Segment', color_discrete_sequence=px.colors.qualitative.Set2)
-    st.plotly_chart(fig,use_container_width=True)
+with t3:
+    st.markdown("#### Préparer une campagne ciblée")
+    target=st.selectbox("Segment cible", segments, key="campaign"); audience=filtered[filtered.Segment.eq(target)].copy(); goal,action,channel=PLAYBOOKS[target]
+    left,right=st.columns((.8,1.2),gap="large")
+    with left:
+        st.metric("Audience sélectionnée", f"{audience.CustomerID.nunique():,}".replace(","," ")); st.metric("Valeur historique", euros(audience.MonetaryValue.sum())); st.metric("Inactivité moyenne", f"{audience.Recency.mean():.0f} jours")
+    with right:
+        st.markdown(f"**Objectif :** {goal}\n\n**Action :** {action}\n\n**Canal :** {channel}")
+    export=audience[["CustomerID","Segment","Recency","Frequency","MonetaryValue","LastInvoiceDate"]].sort_values("MonetaryValue",ascending=False)
+    st.download_button("Télécharger l'audience de campagne (CSV)", export.to_csv(index=False).encode("utf-8-sig"), f"audience_{target.lower().replace('-','_')}.csv", "text/csv")
 
+with t4:
+    st.markdown("#### Identifier les clients prioritaires")
+    st.caption("Triée par valeur monétaire observée. Les indicateurs décrivent l'historique, pas une prédiction future.")
+    st.dataframe(filtered[["CustomerID","Segment","Recency","Frequency","MonetaryValue","LastInvoiceDate"]].sort_values("MonetaryValue",ascending=False), width="stretch", hide_index=True, column_config={"MonetaryValue":st.column_config.NumberColumn("Valeur monétaire",format="€%.2f"),"Recency":st.column_config.NumberColumn("Récence (jours)"),"Frequency":st.column_config.NumberColumn("Fréquence"),"LastInvoiceDate":st.column_config.DatetimeColumn("Dernier achat",format="DD/MM/YYYY")})
 
-# Profile per Cluster
-
-st.markdown('<h2 class="section-title">👤 Segment Profiles</h2>', unsafe_allow_html=True)
-segments_unique = filtered_df['Segment'].unique()
-if len(segments_unique)==0:
-    st.info("Select at least one segment to display profiles.")
-else:
-    tabs = st.tabs([f"{s}" for s in segments_unique])
-    for i, seg in enumerate(segments_unique):
-        with tabs[i]:
-            seg_df = filtered_df[filtered_df['Segment']==seg]
-            st.metric("Number of Customers", len(seg_df))
-            st.metric("Average Value", f"${seg_df['MonetaryValue'].mean():,.0f}")
-            st.metric("Total Value", f"${seg_df['Customer_Value'].sum():,.0f}")
-
-            fig = make_subplots(rows=1,cols=3,subplot_titles=['Recency','Frequency','MonetaryValue'])
-            fig.add_trace(go.Histogram(x=seg_df['Recency'],name='Recency'),row=1,col=1)
-            fig.add_trace(go.Histogram(x=seg_df['Frequency'],name='Frequency'),row=1,col=2)
-            fig.add_trace(go.Histogram(x=seg_df['MonetaryValue'],name='MonetaryValue'),row=1,col=3)
-            fig.update_layout(height=400,showlegend=False)
-            st.plotly_chart(fig,use_container_width=True)
-
-            st.markdown("###  Top 5 Customers")
-            top5 = seg_df.nlargest(5,'Customer_Value')[['CustomerID','Recency','Frequency','MonetaryValue','Customer_Value']]
-            st.dataframe(top5.style.format({'MonetaryValue':'${:.2f}','Customer_Value':'${:.2f}'}),use_container_width=True)
-            # Insights & Recommendations automatiques
-            
-            st.markdown("###  Insights & Recommendations")
-            insights = []
-            # Recency thresholds
-            rec_med = seg_df['Recency'].median()
-            freq_med = seg_df['Frequency'].median()
-            mon_med = seg_df['MonetaryValue'].median()
-
-            if seg in ['RETAIN','REWARD','PAMPER']:
-                insights.append(" High value & frequent customers: reward loyalty, offer VIP perks, exclusive campaigns.")
-            if seg in ['RE-ENGAGE','CHURN','UPSELL']:
-                insights.append(" Low engagement: send re-engagement campaigns, discounts, targeted communication.")
-            if seg in ['NURTURE','DELIGHT']:
-                insights.append(" Encourage repeat purchases: bundles, cross-sell recommendations, loyalty points.")
-            
-            if rec_med>50:
-                insights.append(" Customers have been inactive recently: consider reminder emails.")
-            if freq_med<2:
-                insights.append(" Low purchase frequency: suggest attractive starter offers.")
-            if mon_med>300:
-                insights.append(" High monetary value: focus on premium products and upselling.")
-
-            st.markdown("• " + "\n• ".join(insights))
-
-# 3D RFM Visualization
-
-st.markdown('<h2 class="section-title">📈 RFM 3D Visualization</h2>', unsafe_allow_html=True)
-if show_3d and len(filtered_df)>0:
-    fig3d = px.scatter_3d(filtered_df, x='Recency', y='Frequency', z='MonetaryValue',
-                        color='Segment', size='Customer_Value', hover_data=['CustomerID'],
-                        color_discrete_sequence=px.colors.qualitative.Set2)
-    fig3d.update_layout(scene=dict(xaxis_title='Recency',yaxis_title='Frequency',zaxis_title='MonetaryValue'),height=700)
-    st.plotly_chart(fig3d,use_container_width=True)
-
-
-# Pareto Analysis
-
-if len(filtered_df)>0:
-    df_sorted = filtered_df.sort_values('Customer_Value',ascending=False)
-    df_sorted['Cumulative_Value'] = df_sorted['Customer_Value'].cumsum()
-    df_sorted['Cumulative_Percent'] = (np.arange(1,len(df_sorted)+1)/len(df_sorted))*100
-    df_sorted['Value_Percent'] = (df_sorted['Cumulative_Value']/df_sorted['Customer_Value'].sum())*100
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df_sorted['Cumulative_Percent'],y=df_sorted['Value_Percent'],mode='lines',name='Cumulative Value',line=dict(color='#3498db',width=3)))
-    fig.add_shape(type="line",x0=20,y0=0,x1=20,y1=80,line=dict(color="red",width=2,dash="dash"))
-    fig.add_shape(type="line",x0=0,y0=80,x1=20,y1=80,line=dict(color="red",width=2,dash="dash"))
-    fig.update_layout(title="Pareto Analysis (20% customers ≈ 80% value)", xaxis_title="% Customers", yaxis_title="% Value", height=500)
-    st.plotly_chart(fig,use_container_width=True)
-
-
-# Export
-
-st.markdown('<h2 class="section-title">📤 Export Data</h2>', unsafe_allow_html=True)
-csv = filtered_df.to_csv(index=False).encode('utf-8')
-st.download_button(" Download Filtered Segments",data=csv,file_name="segments_clients.csv",mime="text/csv")
+st.divider(); st.caption("Méthode : RFM (récence, fréquence, valeur monétaire) + K-Means. Source : résultat prétraité du notebook de clustering.")
