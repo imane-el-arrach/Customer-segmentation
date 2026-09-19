@@ -18,14 +18,9 @@
 ![Vue d'ensemble du dashboard SegmentIQ](screenshots/dashboard_overview.png)
 *4 285 clients analysés, 8,67 M€ de CA historique, 1 614 clients actifs (≤30j), et 73,3% du CA porté par les 20% meilleurs clients*
 
-![Visualisation 3D interactive des clusters (Recency × Frequency × MonetaryValue)](screenshots/clusters_3d_plotly.png)
-*Position de chaque client selon ses 3 variables RFM, filtrable par segment*
-
 ![Fiche détaillée par segment avec action marketing recommandée](screenshots/segment_profiles.png)
 *Chaque segment dispose d'une fiche complète : nombre de clients, CA historique, panier moyen, fréquence, récence, part du CA total, et une action marketing concrète (ex: pour DELIGHT — "Préserver une relation à très forte valeur : accès anticipé, service prioritaire, offre VIP personnalisée")*
 
-![Plan de campagne — export d'audience](screenshots/campaign_plan.png)
-*Sélection d'un segment et téléchargement de son audience en CSV, prêt pour une campagne marketing*
 
 ---
 
